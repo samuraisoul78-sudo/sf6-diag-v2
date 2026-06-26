@@ -1004,6 +1004,33 @@ function ShareButtons({ r, T, mainChar }) {
 
 // ---------- 結果の保存(window.storage) ----------
 const STORE_KEY = "diag_records_v1";
+
+// ---------- 結果の一時保存・復元(localStorage・離脱救済) ----------
+const LAST_KEY = "sf6diag_lastResult";
+const LAST_TTL_MS = 10 * 60 * 1000; // 10分
+function saveLastResult(payload) {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(LAST_KEY, JSON.stringify({ ...payload, savedAt: Date.now() }));
+  } catch (_) {}
+}
+function loadLastResult() {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(LAST_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !data.savedAt) return null;
+    const age = Date.now() - data.savedAt;
+    if (age > LAST_TTL_MS) { window.localStorage.removeItem(LAST_KEY); return null; }
+    return { data, remainingMin: Math.max(1, Math.ceil((LAST_TTL_MS - age) / 60000)) };
+  } catch (_) { return null; }
+}
+function clearLastResult() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try { window.localStorage.removeItem(LAST_KEY); } catch (_) {}
+}
+
 async function saveRecord(rec) {
   if (typeof window === "undefined" || !window.storage) return false;
   try {
@@ -1228,6 +1255,7 @@ export default function App() {
   const [tieStep, setTieStep] = useState(0);
   const [viewChar, setViewChar] = useState("");
   const [charFlash, setCharFlash] = useState(false);
+  const [restorePrompt, setRestorePrompt] = useState(null); // {remainingMin} | null
 
   // 全質問を一列に: mbti(16) + cog(10) + aes(4)+ideal(1) + men(4)+rec(1) + grw(5) = 41
   const FLOW = useMemo(() => {
@@ -1251,6 +1279,28 @@ export default function App() {
 
   const cur = FLOW[step];
   const total = FLOW.length;
+
+  // 起動時: 10分以内の前回結果があれば復元を促す
+  useEffect(() => {
+    const last = loadLastResult();
+    if (last) setRestorePrompt({ remainingMin: last.remainingMin });
+  }, []);
+
+  function restoreLast() {
+    const last = loadLastResult();
+    if (!last) { setRestorePrompt(null); return; }
+    const d = last.data;
+    setAns(d.ans);
+    setTieAnswers(d.tieAnswers || {});
+    setMainChar(d.mainChar || "");
+    setRank(d.rank || "");
+    setRestorePrompt(null);
+    setPhase("result");
+  }
+  function discardLast() {
+    clearLastResult();
+    setRestorePrompt(null);
+  }
 
   function setAnswer(val) {
     setAns((prev) => {
@@ -1364,6 +1414,8 @@ export default function App() {
         },
       };
       saveRecord(rec).then(() => setSaved(true));
+      // 離脱救済用に回答一式をlocalStorageへ
+      saveLastResult({ ans, tieAnswers, mainChar, rank });
     }
     if (phase !== "result" && saved) setSaved(false);
   }, [phase, result, saved, mainChar, rank]);
@@ -1394,6 +1446,16 @@ export default function App() {
       <div style={wrap}>
         <div style={{ ...container, paddingTop: 48 }}>
           <div style={{ fontSize: 11, letterSpacing: "0.25em", color: C.purple, marginBottom: 12 }}>FIGHTING GAME COGNITION RESEARCH</div>
+          {restorePrompt && (
+            <div style={{ background: "rgba(6,182,212,0.10)", border: `1px solid ${C.cyan}`, borderRadius: 12, padding: "14px 16px", marginBottom: 20 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, marginBottom: 4 }}>前回の診断結果があります</div>
+              <div style={{ fontSize: 12.5, color: C.sub, lineHeight: 1.6, marginBottom: 12 }}>あと約{restorePrompt.remainingMin}分以内なら、前回の結果をそのまま見られます。</div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={restoreLast} style={{ flex: 1, padding: "11px", borderRadius: 9, border: "none", cursor: "pointer", background: `linear-gradient(135deg, ${C.purple}, ${C.cyan})`, color: "#fff", fontSize: 14, fontWeight: 700 }}>結果を見る</button>
+                <button onClick={discardLast} style={{ flex: "0 0 auto", padding: "11px 16px", borderRadius: 9, border: `1px solid ${C.border}`, background: "transparent", color: C.sub, fontSize: 14, cursor: "pointer" }}>新しく診断する</button>
+              </div>
+            </div>
+          )}
           <h1 onClick={() => { const n = tapCount + 1; setTapCount(n); if (n >= 5) { setPhase("admin"); setTapCount(0); } }}
             style={{ fontSize: 28, margin: "0 0 6px", fontWeight: 800, cursor: "default", userSelect: "none" }}>SF6 格ゲープレイヤー診断</h1>
           <div style={{ color: C.cyan, fontSize: 14, marginBottom: 2 }}>MBTI × 格ゲー認知スタイル</div>
@@ -1418,7 +1480,7 @@ export default function App() {
             </select>
           </div>
 
-          <button onClick={() => { setPhase("quiz"); setStep(0); }}
+          <button onClick={() => { clearLastResult(); setRestorePrompt(null); setPhase("quiz"); setStep(0); }}
             style={{ width: "100%", padding: "15px", borderRadius: 11, border: "none", cursor: "pointer", background: `linear-gradient(135deg, ${C.purple}, ${C.cyan})`, color: "#fff", fontSize: 16, fontWeight: 700 }}>
             診断をはじめる（全43問）
           </button>
