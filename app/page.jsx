@@ -1002,7 +1002,70 @@ function ShareButtons({ r, T, mainChar }) {
   );
 }
 
-// ---------- 結果の保存(window.storage) ----------
+// ---------- 結果の保存(Supabase) ----------
+const SUPABASE_URL = "https://ooggkvkztxdbrhksccwp.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9vZ2drdmt6dHhkYnJoa3NjY3dwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0MzE2NTUsImV4cCI6MjA5ODAwNzY1NX0.GPJy4uj_X7dQfBNRx_GXl7F-Nv6yYjNDWIJLzCpcdHI";
+const SB_TABLE = "diag_records";
+const SB_HEADERS = {
+  "Content-Type": "application/json",
+  apikey: SUPABASE_ANON,
+  Authorization: `Bearer ${SUPABASE_ANON}`,
+};
+
+async function saveRecord(rec) {
+  if (typeof window === "undefined") return false;
+  try {
+    const row = {
+      mbti: rec.mbti,
+      char: rec.char,
+      rank: rec.rank,
+      dev_cog: rec.dev?.cog ?? null,
+      dev_aes: rec.dev?.aes ?? null,
+      dev_men: rec.dev?.men ?? null,
+      dev_grw: rec.dev?.grw ?? null,
+      measured_cog: rec.measured?.cog ?? null,
+      measured_aes: rec.measured?.aes ?? null,
+      measured_men: rec.measured?.men ?? null,
+      measured_grw: rec.measured?.grw ?? null,
+    };
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${SB_TABLE}`, {
+      method: "POST",
+      headers: { ...SB_HEADERS, Prefer: "return=minimal" },
+      body: JSON.stringify(row),
+    });
+    return res.ok;
+  } catch (e) {
+    console.error("save failed", e);
+    return false;
+  }
+}
+
+async function loadRecords() {
+  if (typeof window === "undefined") return [];
+  try {
+    // 直近5000件を取得(新しい順)
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/${SB_TABLE}?select=*&order=created_at.desc&limit=5000`,
+      { headers: SB_HEADERS }
+    );
+    if (!res.ok) return [];
+    const rows = await res.json();
+    // 集計画面が期待する形に整形
+    return rows.map((r) => ({
+      ts: r.created_at ? new Date(r.created_at).getTime() : 0,
+      mbti: r.mbti,
+      char: r.char,
+      rank: r.rank,
+      dev: { cog: r.dev_cog, aes: r.dev_aes, men: r.dev_men, grw: r.dev_grw },
+      measured: { cog: r.measured_cog, aes: r.measured_aes, men: r.measured_men, grw: r.measured_grw },
+    }));
+  } catch (e) {
+    console.error("load failed", e);
+    return [];
+  }
+}
+
+// ---------- 旧 window.storage 版(未使用・参考) ----------
 const STORE_KEY = "diag_records_v1";
 
 // ---------- 結果の一時保存・復元(localStorage・離脱救済) ----------
@@ -1029,33 +1092,6 @@ function loadLastResult() {
 function clearLastResult() {
   if (typeof window === "undefined" || !window.localStorage) return;
   try { window.localStorage.removeItem(LAST_KEY); } catch (_) {}
-}
-
-async function saveRecord(rec) {
-  if (typeof window === "undefined" || !window.storage) return false;
-  try {
-    let arr = [];
-    try {
-      const got = await window.storage.get(STORE_KEY, true);
-      if (got && got.value) arr = JSON.parse(got.value);
-    } catch (_) { arr = []; }
-    arr.push(rec);
-    // 上限: 直近5000件
-    if (arr.length > 5000) arr = arr.slice(-5000);
-    await window.storage.set(STORE_KEY, JSON.stringify(arr), true);
-    return true;
-  } catch (e) {
-    console.error("save failed", e);
-    return false;
-  }
-}
-async function loadRecords() {
-  if (typeof window === "undefined" || !window.storage) return [];
-  try {
-    const got = await window.storage.get(STORE_KEY, true);
-    if (got && got.value) return JSON.parse(got.value);
-  } catch (_) {}
-  return [];
 }
 
 const MBTI_LIST = ["INTJ","INTP","ENTJ","ENTP","INFJ","INFP","ENFJ","ENFP","ISTJ","ISFJ","ESTJ","ESFJ","ISTP","ISFP","ESTP","ESFP"];
@@ -1124,11 +1160,6 @@ function AdminStats({ onClose }) {
           <button onClick={onClose} style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.sub, cursor: "pointer", fontSize: 13 }}>閉じる</button>
         </div>
         <div style={{ fontSize: 12.5, color: C.dim, marginBottom: 16 }}>累計回答数：<b style={{ color: C.cyan }}>{N}</b> 件</div>
-        {(typeof window === "undefined" || !window.storage) && (
-          <div style={{ fontSize: 12, color: C.amber, background: "rgba(245,158,11,0.08)", border: `1px solid ${C.amber}`, borderRadius: 8, padding: "9px 12px", marginBottom: 16, lineHeight: 1.7 }}>
-            集計データベースは未接続です。本番では外部DB（Supabase等）に接続すると、ここに回答が集計されます。
-          </div>
-        )}
 
         <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 18 }}>
           {tabBtn("mbti", "MBTI分布")}
