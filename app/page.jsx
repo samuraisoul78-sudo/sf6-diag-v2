@@ -1181,13 +1181,17 @@ function AdminStats({ onClose }) {
   // MBTI分布
   const mbtiDist = MBTI_LIST.map((m) => ({ name: m, value: records.filter((r) => r.mbti === m).length }));
 
+  // ランク表記の短縮
+  const rankShort = (rk) => rk.replace("マスター(MR1300未満)", "Master").replace("プラチナ以下", "〜Plat").replace("ダイヤモンド", "Dia");
+
   // キャラ別タイプ傾向
   const charRecords = records.filter((r) => r.char === charFilter);
   const charTypeDist = MBTI_LIST.map((m) => ({ name: m, value: charRecords.filter((r) => r.mbti === m).length })).filter((d) => d.value > 0);
+  // 選択キャラのランク内訳
+  const charRankDist = RANK_LIST.map((rk) => ({ name: rankShort(rk), full: rk, value: charRecords.filter((r) => r.rank === rk).length })).filter((d) => d.value > 0);
   const charsWithData = [...new Set(records.map((r) => r.char).filter(Boolean))];
 
   // ランク帯 × 認知タイプ(実測主タイプ measured.cog)
-  const rankShort = (rk) => rk.replace("マスター(MR1300未満)", "Master").replace("プラチナ以下", "〜Plat").replace("ダイヤモンド", "Dia");
   const rankCog = RANK_LIST.map((rk) => {
     const rs = records.filter((r) => r.rank === rk);
     const row = { rank: rankShort(rk), n: rs.length };
@@ -1285,17 +1289,32 @@ function AdminStats({ onClose }) {
             <select value={charFilter} onChange={(e) => setCharFilter(e.target.value)} style={{ width: "100%", padding: "10px 12px", marginBottom: 14, borderRadius: 9, background: C.panel2, color: C.text, border: `1px solid ${C.border}`, fontSize: 14 }}>
               {ALL_CHARS.map((c) => <option key={c} value={c}>{c}（{records.filter((r) => r.char === c).length}件）</option>)}
             </select>
-            {charTypeDist.length === 0 ? <div style={{ color: C.dim, fontSize: 13, padding: 16 }}>このキャラのデータはまだありません。</div> : (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={charTypeDist} layout="vertical" margin={{ left: 10 }}>
-                  <XAxis type="number" tick={{ fill: C.sub, fontSize: 11 }} allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: C.sub, fontSize: 11 }} width={50} />
-                  <Tooltip contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text }} />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                    {charTypeDist.map((d) => <Cell key={d.name} fill={mbtiGroupOf(d.name).color} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            {charRecords.length === 0 ? <div style={{ color: C.dim, fontSize: 13, padding: 16 }}>このキャラのデータはまだありません。</div> : (
+              <>
+                <div style={{ fontSize: 12, color: C.sub, marginBottom: 12 }}>{charFilter} の回答：<b style={{ color: C.cyan }}>{charRecords.length}</b> 件</div>
+
+                <div style={{ fontSize: 12, color: C.text, fontWeight: 700, marginBottom: 6 }}>MBTIタイプ内訳</div>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={charTypeDist} layout="vertical" margin={{ left: 10 }}>
+                    <XAxis type="number" tick={{ fill: C.sub, fontSize: 11 }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fill: C.sub, fontSize: 11 }} width={50} />
+                    <Tooltip contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text }} />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                      {charTypeDist.map((d) => <Cell key={d.name} fill={mbtiGroupOf(d.name).color} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+
+                <div style={{ fontSize: 12, color: C.text, fontWeight: 700, margin: "18px 0 6px" }}>ランク帯内訳</div>
+                <ResponsiveContainer width="100%" height={Math.max(160, charRankDist.length * 34)}>
+                  <BarChart data={charRankDist} layout="vertical" margin={{ left: 10, right: 16 }}>
+                    <XAxis type="number" tick={{ fill: C.sub, fontSize: 11 }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fill: C.sub, fontSize: 10.5 }} width={64} interval={0} />
+                    <Tooltip contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text }} />
+                    <Bar dataKey="value" fill={C.amber} radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </>
             )}
           </Panel>
         )}
