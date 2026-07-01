@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from "recharts";
 
 // ====================================================================
 // SF6 格ゲープレイヤー診断 — テストプロトタイプ Ver.0.1
@@ -14,7 +14,7 @@ const C = {
   panel: "#161a23",
   panel2: "#1e2430",
   border: "#2a3140",
-  purple: "#7c3aed",
+  purple: "#5b6472",
   cyan: "#06b6d4",
   amber: "#f59e0b",
   text: "#e7ebf2",
@@ -328,6 +328,26 @@ const COG_TO_GROUP = {
   圧力: "投げ・パワー・近距離圧",
   直感: "撹乱・変則・感覚",
   反応: "スタンダード",
+};
+
+// ---------- MBTI 4グループ(NT/NF/SJ/SP)分類と配色 ----------
+// 研究資料「格ゲー的MBTI 4グループ分類」準拠(NT青/NF緑/SJ紫/SP橙)
+const MBTI_GROUPS = {
+  NT: { key: "NT", label: "構造攻略型", sub: "勝ち筋を設計する者たち", color: "#3478d5", g1: "#556fc6", g2: "#122282", soft: "rgba(52,120,213,0.14)", types: ["INTJ", "INTP", "ENTJ", "ENTP"] },
+  NF: { key: "NF", label: "心理読解型", sub: "相手の欲を読む者たち", color: "#24a33f", g1: "#549f27", g2: "#085b1a", soft: "rgba(36,163,63,0.14)", types: ["INFJ", "INFP", "ENFJ", "ENFP"] },
+  SJ: { key: "SJ", label: "再現管理型", sub: "勝率を安定させる者たち", color: "#8a3dcb", g1: "#6e279f", g2: "#35085b", soft: "rgba(138,61,203,0.14)", types: ["ISTJ", "ISFJ", "ESTJ", "ESFJ"] },
+  SP: { key: "SP", label: "実戦感覚型", sub: "その場の勝負を制する者たち", color: "#cb763d", g1: "#d9a75e", g2: "#ba661b", soft: "rgba(203,118,61,0.14)", types: ["ISTP", "ISFP", "ESTP", "ESFP"] },
+};
+// グループのグラデ文字列(見出し等で使用)
+const groupGrad = (g, deg = 135) => `linear-gradient(${deg}deg, ${g.g1}, ${g.g2})`;
+// MBTIタイプ文字列 → グループ定義
+const mbtiGroupOf = (mbti) => {
+  if (!mbti || mbti.length < 4) return MBTI_GROUPS.NT;
+  const has = (c) => mbti.includes(c);
+  if (has("N") && has("T")) return MBTI_GROUPS.NT;
+  if (has("N") && has("F")) return MBTI_GROUPS.NF;
+  if (has("S") && has("J")) return MBTI_GROUPS.SJ;
+  return MBTI_GROUPS.SP; // S + P
 };
 
 // 層2 キャラ固有(全30キャラ)
@@ -880,13 +900,17 @@ function Likert({ value, onChange, opts }) {
         return (
           <button key={i} onClick={() => onChange(v)}
             style={{
-              textAlign: "left", padding: "12px 14px", borderRadius: 10, cursor: "pointer",
-              border: `1.5px solid ${active ? C.purple : C.border}`,
-              background: active ? "rgba(124,58,237,0.16)" : C.panel2,
+              position: "relative", textAlign: "left", padding: "12px 14px 12px 16px", borderRadius: 10, cursor: "pointer",
+              border: `1.5px solid ${active ? C.cyan : C.border}`,
+              background: active ? "rgba(6,182,212,0.20)" : C.panel2,
               color: active ? C.text : C.sub, fontSize: 14, lineHeight: 1.4,
+              boxShadow: active ? `0 0 0 1px ${C.cyan}` : "none",
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
               transition: "all .12s",
             }}>
-            {label}
+            <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, borderRadius: "10px 0 0 10px", background: active ? C.cyan : "transparent" }} />
+            <span>{label}</span>
+            {active && <span style={{ flex: "0 0 auto", fontSize: 15, fontWeight: 800, color: C.cyan, lineHeight: 1 }}>✓</span>}
           </button>
         );
       })}
@@ -902,16 +926,17 @@ function GrwPicker({ pick, onPick, opts }) {
         const isFirst = p.first === type;
         const isSecond = p.second === type;
         const sel = isFirst || isSecond;
-        const col = isFirst ? C.purple : isSecond ? C.cyan : C.border;
+        const col = isFirst ? C.cyan : isSecond ? C.amber : C.border;
         return (
           <button key={i} onClick={() => onPick(type)}
             style={{ textAlign: "left", padding: "12px 14px", borderRadius: 10, cursor: "pointer",
               border: `1.5px solid ${sel ? col : C.border}`,
-              background: isFirst ? "rgba(124,58,237,0.16)" : isSecond ? "rgba(6,182,212,0.14)" : C.panel2,
+              boxShadow: sel ? `0 0 0 1px ${col}` : "none",
+              background: isFirst ? "rgba(6,182,212,0.20)" : isSecond ? "rgba(245,158,11,0.18)" : C.panel2,
               color: sel ? C.text : C.sub, fontSize: 14, lineHeight: 1.4, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
             <span>{label}</span>
-            {isFirst && <span style={{ flex: "0 0 auto", fontSize: 11, fontWeight: 700, color: "#fff", background: C.purple, padding: "2px 9px", borderRadius: 10 }}>1番目</span>}
-            {isSecond && <span style={{ flex: "0 0 auto", fontSize: 11, fontWeight: 700, color: "#fff", background: C.cyan, padding: "2px 9px", borderRadius: 10 }}>2番目</span>}
+            {isFirst && <span style={{ flex: "0 0 auto", fontSize: 11, fontWeight: 700, color: "#04222b", background: C.cyan, padding: "2px 10px", borderRadius: 10 }}>1番目</span>}
+            {isSecond && <span style={{ flex: "0 0 auto", fontSize: 11, fontWeight: 700, color: "#3a2600", background: C.amber, padding: "2px 10px", borderRadius: 10 }}>2番目</span>}
           </button>
         );
       })}
@@ -927,12 +952,17 @@ function Choice({ value, onChange, opts }) {
         return (
           <button key={i} onClick={() => onChange(type)}
             style={{
-              textAlign: "left", padding: "12px 14px", borderRadius: 10, cursor: "pointer",
+              position: "relative", textAlign: "left", padding: "12px 14px 12px 16px", borderRadius: 10, cursor: "pointer",
               border: `1.5px solid ${active ? C.cyan : C.border}`,
-              background: active ? "rgba(6,182,212,0.16)" : C.panel2,
+              background: active ? "rgba(6,182,212,0.20)" : C.panel2,
               color: active ? C.text : C.sub, fontSize: 14, lineHeight: 1.4,
+              boxShadow: active ? `0 0 0 1px ${C.cyan}` : "none",
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+              transition: "all .12s",
             }}>
-            {label}
+            <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, borderRadius: "10px 0 0 10px", background: active ? C.cyan : "transparent" }} />
+            <span>{label}</span>
+            {active && <span style={{ flex: "0 0 auto", fontSize: 15, fontWeight: 800, color: C.cyan, lineHeight: 1 }}>✓</span>}
           </button>
         );
       })}
@@ -1095,6 +1125,26 @@ function clearLastResult() {
 }
 
 const MBTI_LIST = ["INTJ","INTP","ENTJ","ENTP","INFJ","INFP","ENFJ","ENFP","ISTJ","ISFJ","ESTJ","ESFJ","ISTP","ISFP","ESTP","ESFP"];
+
+// 各タイプの要点3つ(結果冒頭の導入)
+const TYPE_POINTS = {
+  INTJ: ["対戦を長期的な盤面設計として捉え、勝ち筋を組み立ててから動く", "相手の観察を、その場の対応でなく長期的な戦略へ変換する", "設計が機能した時の制圧力は随一。一方で想定外が続く展開には弱さが出る"],
+  INTP: ["「なぜこの選択が通るのか」を理解してから実戦に出したい", "勝敗より、説明可能か・理屈が通るかを重視する", "理解した状況の処理は正確。一方で理屈の通らない負けが続くと手が止まりやすい"],
+  ENTJ: ["自分から試合を動かし、相手を自分の展開に従わせる", "効率と主導権を重視し、相手の逃げ道を計算して塞ぐ", "試合を支配しきった時の強さは随一。一方で主導権を取れない展開には弱い"],
+  ENTP: ["新しい択を実戦で試し、相手の反応から学ぶ", "定石をなぞるより、隠れた可能性や意外な崩しを探す", "発想が通った時の読みにくさは随一。一方で自由に試せないと選択肢が散らかる"],
+  INFJ: ["相手の行動の「奥にある意図」を読み、先回りして動く", "ただ勝つより、納得できる勝ち方・読みが噛み合った勝利を求める", "読みが噛み合った時の鋭さは随一。一方で読めない相手には手が止まりやすい"],
+  INFP: ["「その勝ち方が自分にとって意味があるか」を大切にする", "キャラ愛や好きな動き、自分らしさを基準に選ぶ", "自分の形がハマった時の独特の強さがある。一方で納得できないとモチベが折れやすい"],
+  ENFJ: ["相手の心理を読み、誘導して試合の流れを作る", "期待値だけでなく、駆け引きの中で相手の感情を動かす", "誘導が噛み合った時の試合運びは見事。一方で相手が動かないと苦しくなる"],
+  ENFP: ["自由な発想で新しい勝ち筋を見つけ、想定外を突く", "効率より、楽しさと自分らしさを大事にする", "発想がハマった時は手がつけられない。一方で自由を封じられると集中が散りやすい"],
+  ISTJ: ["対策と手順を準備し、正確に再現して安定した勝ち方を作る", "距離・技・フレームなど具体的な盤面を正確に捉える", "再現性の高さが武器。一方で対策外の行動が続くと手が止まりやすい"],
+  ISFJ: ["相手をよく見て危険を避け、堅実に守って相手のミスを拾う", "リスクの高い選択より、確実で安心できる対応を重視する", "守りが安定すれば大きく崩れない。一方で守り一辺倒になると反撃が遅れやすい"],
+  ESTJ: ["相手の甘えやミスを的確に咎め、試合を自分のルールで管理する", "期待値の高い選択を取り、相手の甘えに正しいリスクを負わせる", "相手を矯正する圧力が武器。一方で咎めきれないと前のめりになりやすい"],
+  ESFJ: ["相手の動きをよく見て、それに合わせて適切に返し続ける", "一方的な最適解より、相手に噛み合う対応を重視する", "対応力の高さが武器。一方で読めない荒れた展開だと基準行動が消えやすい"],
+  ISTP: ["差し返し・対空・確反・入力精度といった手元の完成度で勝つ", "理屈より、実際にできるか・手元で再現できるかを大切にする", "技術が噛み合った時の処理は正確。一方で精度が落ちると操作が荒くなりやすい"],
+  ISFP: ["自分の感覚とリズム、キャラらしさを頼りに戦う", "フレームより、動かしていて気持ちいいか・しっくりくるかを重視する", "感覚がハマった時の独特の強さがある。一方でリズムが出ないと出力が落ちやすい"],
+  ESTP: ["目の前の盤面を見て勝負所を見極め、その一瞬を制す", "リスク・リターンと通す価値を見極め、必要な一手を選ぶ", "勝負勘が噛み合った時の突破力が武器。一方で待たされると無理な突撃が増える"],
+  ESFP: ["試合のテンポと勢いを掴み、流れに乗って相手を飲み込む", "理屈より、今の空気や勢いに乗れているかを重視する", "流れが噛み合った時の制圧力が魅力。一方で勢いを止められると雑な攻めが増える"],
+};
 const RANK_LIST = ["プラチナ以下","ダイヤモンド","マスター(MR1300未満)","MR1300〜1499","MR1500〜1699","MR1700〜1899","MR1900〜2099","MR2100以上","不明・非公開"];
 const STAGE_COLORS = ["#16a34a", "#f59e0b", "#dc2626"]; // 0一致 1軽 2明確
 
@@ -1149,7 +1199,7 @@ function AdminStats({ onClose }) {
   const wrap = { minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "system-ui,sans-serif", padding: "0 0 60px" };
   const container = { maxWidth: 760, margin: "0 auto", padding: "0 16px" };
   const tabBtn = (v, label) => (
-    <button onClick={() => setView(v)} style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${view === v ? C.purple : C.border}`, background: view === v ? "rgba(124,58,237,0.18)" : C.panel2, color: view === v ? C.text : C.sub, fontSize: 12.5, cursor: "pointer", whiteSpace: "nowrap" }}>{label}</button>
+    <button onClick={() => setView(v)} style={{ padding: "8px 12px", borderRadius: 8, border: `1px solid ${view === v ? C.purple : C.border}`, background: view === v ? "rgba(91,100,114,0.18)" : C.panel2, color: view === v ? C.text : C.sub, fontSize: 12.5, cursor: "pointer", whiteSpace: "nowrap" }}>{label}</button>
   );
 
   return (
@@ -1252,7 +1302,7 @@ function AdminStats({ onClose }) {
                       {MBTI_LIST.map((m) => {
                         const v = row[m];
                         const intensity = row.n ? v / row.n : 0;
-                        return <td key={m} style={{ padding: "6px 5px", border: `1px solid ${C.border}`, textAlign: "center", background: v ? `rgba(124,58,237,${0.15 + intensity * 0.6})` : "transparent", color: v ? C.text : C.dim }}>{v || ""}</td>;
+                        return <td key={m} style={{ padding: "6px 5px", border: `1px solid ${C.border}`, textAlign: "center", background: v ? `rgba(91,100,114,${0.15 + intensity * 0.6})` : "transparent", color: v ? C.text : C.dim }}>{v || ""}</td>;
                       })}
                     </tr>
                   ))}
@@ -1549,16 +1599,25 @@ export default function App() {
 
         <div style={{ ...container, paddingTop: 28 }}>
           {cur.kind === "grw" && cur.idx === 0 && (
-            <div style={{ background: "rgba(124,58,237,0.12)", border: `1px solid ${C.purple}`, borderRadius: 10, padding: "12px 14px", marginBottom: 18 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text, marginBottom: 4 }}>ここからは「成長」についての質問です</div>
-              <div style={{ fontSize: 12.5, color: C.sub, lineHeight: 1.7 }}>これまでと違い、<b style={{ color: C.purple }}>最も近いもの</b>と<b style={{ color: C.purple }}>次に近いもの</b>の<b>2つ</b>を、順番にタップして選んでください。</div>
+            <div style={{ background: "rgba(245,158,11,0.12)", border: `1.5px solid ${C.amber}`, borderRadius: 10, padding: "12px 14px", marginBottom: 18, display: "flex", gap: 11, alignItems: "flex-start" }}>
+              <span style={{ flex: "0 0 auto", width: 20, height: 20, borderRadius: "50%", background: C.amber, color: "#3a2600", fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", marginTop: 1 }}>!</span>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: C.amber, marginBottom: 4 }}>ここからは回答方法が変わります</div>
+                <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.7 }}>成長の質問では、<b style={{ color: C.cyan }}>最も近いもの（1番目）</b>と<b style={{ color: C.amber }}>次に近いもの（2番目）</b>の<b>2つ</b>を、順番にタップして選んでください。</div>
+              </div>
             </div>
           )}
           <div style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.5, marginBottom: cur.kind === "grw" ? 8 : 20 }}>
             Q{step + 1}. {cur.q.q}
           </div>
           {cur.kind === "grw" && (
-            <div style={{ fontSize: 12, color: C.purple, marginBottom: 16, fontWeight: 700 }}>【2つ選択】1番目に近いもの → 2番目に近いもの の順にタップ</div>
+            <div style={{ fontSize: 12, marginBottom: 16, fontWeight: 700, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ color: C.dim, fontWeight: 400 }}>2つ選択：</span>
+              <span style={{ color: "#04222b", background: C.cyan, padding: "1px 8px", borderRadius: 8 }}>1番目</span>
+              <span style={{ color: C.dim, fontWeight: 400 }}>→</span>
+              <span style={{ color: "#3a2600", background: C.amber, padding: "1px 8px", borderRadius: 8 }}>2番目</span>
+              <span style={{ color: C.dim, fontWeight: 400 }}>の順にタップ</span>
+            </div>
           )}
           {cur.kind === "grw"
             ? <GrwPicker pick={ans.grw[cur.idx]} onPick={setGrwPick} opts={shuffledOpts} />
@@ -1667,12 +1726,13 @@ export default function App() {
   // 素質/今 両論併記レイヤー(縦積み・各ブロックに説明を紐付け)
   const Layer2 = ({ label, soshitsu, ima, dev, soshitsuDesc, imaDesc, devText, extra, weak }) => {
     const changed = dev && dev.stage !== 0;
+    const gCol = mbtiGroupOf(r.mbti).color;
     return (
       <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px", marginBottom: 12 }}>
         <div style={{ fontSize: 12, color: C.cyan, marginBottom: 10, display: "flex", alignItems: "center" }}>{label}{dev && <DevBadge stage={dev.stage} />}</div>
 
         {/* 素質の傾向ブロック */}
-        <div style={{ borderLeft: `3px solid ${C.purple}`, paddingLeft: 12, marginBottom: changed ? 14 : 0 }}>
+        <div style={{ borderLeft: `3px solid ${gCol}`, paddingLeft: 12, marginBottom: changed ? 14 : 0 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
             <span style={{ fontSize: 10.5, color: C.dim }}>素質の傾向</span>
             <span style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{soshitsu}</span>
@@ -1721,20 +1781,143 @@ export default function App() {
   return (
     <div style={wrap}>
       <div style={{ ...container, paddingTop: 36 }}>
-        {/* ヘッダー */}
-        <div style={{ background: "#0a0c11", border: `1px solid ${C.border}`, borderRadius: 14, padding: "18px 20px", marginBottom: 22 }}>
-          <Pill color={C.purple}>{r.mbti}　{T.name}</Pill>
-          {mainChar && <Pill color={C.cyan}>メインキャラ：{mainChar}</Pill>}
-          <h1 style={{ fontSize: 24, margin: "12px 0 0" }}>
-            {mainChar ? `${mainChar} × ${T.name}` : `${T.name}`}
-          </h1>
-          <div style={{ fontSize: 11, color: C.dim, marginTop: 8 }}>
-            軸合計: E/I {r.detail.EI.sum}・S/N {r.detail.SN.sum}・T/F {r.detail.TF.sum}・J/P {r.detail.JP.sum}
+        {/* ヘッダー(色面帯 + 特大タイプ名) */}
+        {(() => {
+          const g = mbtiGroupOf(r.mbti);
+          return (
+            <div style={{ borderRadius: 16, overflow: "hidden", marginBottom: 22, border: `1px solid ${C.border}` }}>
+              {/* 上層: グループ色のグラデ面 */}
+              <div style={{ background: groupGrad(g), padding: "16px 20px 15px" }}>
+                <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: "0.22em", color: "rgba(255,255,255,0.85)", marginBottom: 3 }}>{g.key} GROUP</div>
+                <div style={{ fontSize: 21, fontWeight: 800, color: "#fff", lineHeight: 1.2 }}>{g.label}</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.82)", marginTop: 4 }}>{g.sub}</div>
+              </div>
+              {/* 下層: 黒面に特大タイプ名 + MBTIコード横並び */}
+              <div style={{ background: "#0a0c11", padding: "20px 20px 18px" }}>
+                <div style={{ fontSize: 11, color: C.dim, letterSpacing: "0.1em", marginBottom: 6 }}>YOUR TYPE</div>
+                <h1 style={{ margin: 0, display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "0 12px" }}>
+                  <span style={{ fontSize: 38, lineHeight: 1.1, fontWeight: 800, color: "#fff", letterSpacing: "0.01em" }}>{T.name}</span>
+                  <span style={{ fontSize: 22, fontWeight: 800, letterSpacing: "0.14em", color: g.color }}>{r.mbti}</span>
+                </h1>
+                <div style={{ width: 44, height: 4, background: g.color, borderRadius: 2, marginTop: 8 }} />
+                {mainChar && (
+                  <div style={{ fontSize: 15, color: C.sub, marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 12, color: g.color, fontWeight: 700, border: `1px solid ${g.color}`, borderRadius: 6, padding: "1px 8px" }}>メイン</span>
+                    {mainChar}
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: C.dim, marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+                  軸合計: E/I {r.detail.EI.sum}・S/N {r.detail.SN.sum}・T/F {r.detail.TF.sum}・J/P {r.detail.JP.sum}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* タイプ要点3つ(導入) */}
+        {TYPE_POINTS[r.mbti] && (() => {
+          const g = mbtiGroupOf(r.mbti);
+          return (
+          <div style={{ background: g.soft, border: `1px solid ${g.color}`, borderRadius: 12, padding: "16px 18px", marginBottom: 22 }}>
+            <div style={{ fontSize: 12, color: g.color, marginBottom: 10, letterSpacing: "0.05em", fontWeight: 700 }}>{T.name}の要点</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {TYPE_POINTS[r.mbti].map((pt, i) => (
+                <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
+                  <span style={{ color: g.color, fontWeight: 700, flex: "0 0 auto", lineHeight: 1.6 }}>▸</span>
+                  <span style={{ fontSize: 13.5, color: C.text, lineHeight: 1.6 }}>{pt}</span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+          );
+        })()}
+
+        {/* 回答の可視化: MBTI4軸バランス + 認知レーダー */}
+        {(() => {
+          const axes = [
+            { key: "EI", left: "E 外向", right: "I 内向", label: "動き出し方" },
+            { key: "SN", left: "S 具体", right: "N 抽象", label: "見ているもの" },
+            { key: "TF", left: "T 合理", right: "F 納得", label: "判断の基準" },
+            { key: "JP", left: "J 計画", right: "P 柔軟", label: "進め方" },
+          ];
+          // 各軸 合計4..20 → 右寄り率 0..100%
+          const pct = (sum) => Math.round(((sum - 4) / 16) * 100);
+          const cogData = COG_ORDER.map((c) => ({ type: c, value: r.cog.tally[c] || 0 }));
+          const cogMax = Math.max(4, ...cogData.map((d) => d.value));
+          const g = mbtiGroupOf(r.mbti);
+          return (
+            <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: "16px", marginBottom: 22 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 14 }}>あなたの回答の傾き</div>
+
+              {/* MBTI 4軸(文字主役) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 20 }}>
+                {axes.map((a) => {
+                  const sum = r.detail[a.key].sum;
+                  const p = pct(sum);
+                  const dev = p - 50;
+                  const isTied = (r.tiedAxes || []).includes(a.key);
+                  const tiedRight = isTied && r.detail[a.key].letter === a.key[1];
+                  const rightSide = isTied ? tiedRight : dev > 0;
+                  const absW = isTied ? 16 : Math.abs(dev);
+                  let strength, winner, winColor;
+                  if (isTied) {
+                    strength = "";
+                    winner = rightSide ? a.right : a.left;
+                    winColor = rightSide ? C.amber : C.cyan;
+                  } else if (Math.abs(dev) <= 6) {
+                    strength = "どちらかといえば ";
+                    winner = (dev >= 0) ? a.right : a.left;
+                    winColor = (dev >= 0) ? C.amber : C.cyan;
+                  } else {
+                    strength = Math.abs(dev) <= 19 ? "やや" : Math.abs(dev) >= 38 ? "強く" : "";
+                    winner = rightSide ? a.right : a.left;
+                    winColor = rightSide ? C.amber : C.cyan;
+                  }
+                  const barRight = isTied ? rightSide : (dev >= 0);
+                  const barW = isTied ? 16 : (Math.abs(dev) <= 6 ? Math.max(5, Math.abs(dev)) : Math.abs(dev));
+                  return (
+                    <div key={a.key}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 5 }}>
+                        <span style={{ fontSize: 11, color: C.dim }}>{a.label}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: winColor }}>
+                          {strength}<span style={{ fontSize: 15 }}>{winner}</span> 寄り{isTied && <span style={{ fontSize: 11, color: C.dim, fontWeight: 400 }}>（推定）</span>}
+                        </span>
+                      </div>
+                      <div style={{ position: "relative", height: 8, background: C.panel2, borderRadius: 4, overflow: "hidden" }}>
+                        <div style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: C.border, transform: "translateX(-0.5px)", zIndex: 1 }} />
+                        <div style={{
+                          position: "absolute", top: 0, bottom: 0,
+                          background: barRight ? "rgba(245,158,11,0.85)" : "rgba(6,182,212,0.85)",
+                          ...(barRight ? { left: "50%" } : { right: "50%" }),
+                          width: `${barW}%`,
+                          ...(isTied ? { backgroundImage: "repeating-linear-gradient(45deg, rgba(255,255,255,0.22) 0 4px, transparent 4px 8px)" } : {}),
+                        }} />
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginTop: 2 }}>
+                        <span style={{ color: C.cyan }}>{a.left}</span>
+                        <span style={{ color: C.amber }}>{a.right}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 認知レーダー */}
+              <div style={{ fontSize: 12, color: g.color, marginBottom: 4, fontWeight: 700 }}>認知タイプの分布（実測）</div>
+              <ResponsiveContainer width="100%" height={220}>
+                <RadarChart data={cogData} outerRadius="72%">
+                  <PolarGrid stroke={C.border} />
+                  <PolarAngleAxis dataKey="type" tick={{ fill: C.sub, fontSize: 12 }} />
+                  <PolarRadiusAxis domain={[0, cogMax]} tick={false} axisLine={false} />
+                  <Radar dataKey="value" stroke={g.color} fill={g.color} fillOpacity={0.45} />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          );
+        })()}
 
         {/* 第1部 */}
-        <div style={{ display: "inline-block", background: C.purple, color: "#fff", fontSize: 13, padding: "4px 13px", borderRadius: 4, marginBottom: 12 }}>第1部　あなたの認知構造</div>
+        <div style={{ display: "inline-block", background: mbtiGroupOf(r.mbti).color, color: "#fff", fontSize: 13, padding: "4px 13px", borderRadius: 4, marginBottom: 12 }}>第1部　あなたの認知構造</div>
 
         {/* 詳細導入文: プレイヤー像 */}
         <div style={{ marginBottom: 20 }}>
@@ -1785,9 +1968,10 @@ export default function App() {
         {(() => {
           const vGroup = viewChar ? CHAR_TO_GROUP[viewChar] : null;
           const cd = viewChar ? CHAR_DATA[viewChar] : null;
+          const g = mbtiGroupOf(r.mbti);
           return (
             <>
-              <div id="part2-char" style={{ display: "inline-block", background: C.cyan, color: "#fff", fontSize: 13, padding: "4px 13px", borderRadius: 4, marginBottom: 12 }}>
+              <div id="part2-char" style={{ display: "inline-block", background: groupGrad(g), color: "#fff", fontSize: 13, fontWeight: 700, padding: "5px 14px", borderRadius: 4, marginBottom: 12 }}>
                 第2部　キャラ × あなたのタイプ
               </div>
 
@@ -1811,11 +1995,11 @@ export default function App() {
                 <>
                   {GROUPS[vGroup].best === r.mbti &&
                     <div style={{ fontSize: 12, color: C.amber, marginBottom: 10 }}>★ あなたのタイプは「{vGroup}」グループと最も噛み合います</div>}
-                  <div style={{ background: C.panel, border: `2px solid ${charFlash ? C.cyan : C.border}`, borderRadius: 12, padding: "16px", marginBottom: 12, transition: "border-color .4s, box-shadow .4s", boxShadow: charFlash ? `0 0 0 3px rgba(6,182,212,0.25)` : "none" }}>
-                    <div style={{ fontSize: 12, color: C.cyan, marginBottom: 6 }}>グループ：{vGroup}</div>
+                  <div style={{ background: C.panel, border: `2px solid ${charFlash ? g.color : C.border}`, borderRadius: 12, padding: "16px", marginBottom: 12, transition: "border-color .4s, box-shadow .4s", boxShadow: charFlash ? `0 0 0 3px ${g.soft}` : "none" }}>
+                    <div style={{ fontSize: 12, color: g.color, fontWeight: 700, marginBottom: 6 }}>グループ：{vGroup}</div>
 
                     {/* 素質の傾向での戦い方 */}
-                    <div style={{ fontSize: 11, color: C.dim, marginBottom: 3 }}>素質の傾向での戦い方（{T.name}）</div>
+                    <div style={{ fontSize: 11.5, color: g.color, fontWeight: 700, marginBottom: 4 }}>素質の傾向での戦い方（{T.name}）</div>
                     <p style={{ fontSize: 13.5, color: C.text, lineHeight: 1.8, margin: "0 0 12px" }}>
                       {layer1Of(vGroup, r.mbti)}
                     </p>
@@ -1830,7 +2014,10 @@ export default function App() {
                       </div>
                     )}
 
-                    <div style={{ fontSize: 15, color: charFlash ? C.cyan : C.purple, fontWeight: 800, marginBottom: 6, transition: "color .4s" }}>{viewChar}の戦い方</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8, marginTop: 4 }}>
+                      <span style={{ width: 4, height: 18, background: g.color, borderRadius: 2, flex: "0 0 auto", transition: "background .4s" }} />
+                      <span style={{ fontSize: 17, color: "#fff", fontWeight: 800 }}>{viewChar}<span style={{ color: g.color }}> の戦い方</span></span>
+                    </div>
                     {cd && (() => {
                       const cogOrder = ["観察", "圧力", "直感", "反応"];
                       const myCog = T.cog;
@@ -1847,10 +2034,10 @@ export default function App() {
                                 return (
                                   <div key={cog} style={{
                                     padding: "9px 11px", borderRadius: 8,
-                                    background: isMy ? "rgba(124,58,237,0.14)" : "rgba(245,158,11,0.10)",
-                                    border: `1px solid ${isMy ? C.purple : C.amber}`,
+                                    background: isMy ? g.soft : "rgba(245,158,11,0.10)",
+                                    border: `1px solid ${isMy ? g.color : C.amber}`,
                                   }}>
-                                    <div style={{ fontSize: 11.5, fontWeight: 700, color: isMy ? C.purple : C.amber, marginBottom: 2 }}>
+                                    <div style={{ fontSize: 11.5, fontWeight: 700, color: isMy ? g.color : C.amber, marginBottom: 2 }}>
                                       {cog}型{isMy && "（あなたの素質）"}{isIma && "（今の傾向）"}
                                     </div>
                                     <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.7 }}>{cd.fit[cog]}</div>
@@ -1902,13 +2089,13 @@ export default function App() {
           const mainInIma = mainChar && imaGroup && CHAR_TO_GROUP[mainChar] === imaGroup;
           return (
             <>
-              <div style={{ display: "inline-block", background: C.purple, color: "#fff", fontSize: 13, padding: "4px 13px", borderRadius: 4, marginBottom: 12, marginTop: 8 }}>
+              <div style={{ display: "inline-block", background: mbtiGroupOf(r.mbti).color, color: "#fff", fontSize: 13, padding: "4px 13px", borderRadius: 4, marginBottom: 12, marginTop: 8 }}>
                 あなたに合うキャラ
               </div>
               <p style={{ fontSize: 12.5, color: C.sub, lineHeight: 1.7, marginBottom: 12 }}>
                 あなたの認知タイプと噛み合いやすいグループです。{mainChar && (mainInSoshitsu || mainInIma) ? `メインの${mainChar}もここに含まれていて、相性は良好です。` : mainChar ? `今のメイン（${mainChar}）も大切にしつつ、別の選択肢として参考にしてください。` : ""}タップするとそのキャラの戦い方が見られます。
               </p>
-              <Block group={soshitsuGroup} kind={`素質の傾向（${T.cog}型）に合う`} color={C.purple} />
+              <Block group={soshitsuGroup} kind={`素質の傾向（${T.cog}型）に合う`} color={mbtiGroupOf(r.mbti).color} />
               {imaGroup && imaGroup !== soshitsuGroup && (
                 <Block group={imaGroup} kind={`今の傾向（${r.cog.main}型）に合う`} color={C.amber} />
               )}
@@ -1935,6 +2122,17 @@ export default function App() {
           style={{ width: "100%", marginTop: 24, padding: "13px", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.sub, fontSize: 14, cursor: "pointer" }}>
           もう一度診断する
         </button>
+
+        {/* クレジット */}
+        <div style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${C.border}`, textAlign: "center" }}>
+          <div style={{ fontSize: 12.5, color: C.sub, lineHeight: 1.9 }}>
+            制作　<span style={{ color: C.text, fontWeight: 700 }}>安樂浄土</span>
+          </div>
+          <div style={{ fontSize: 12.5, color: C.sub, lineHeight: 1.9 }}>
+            デザイン協力　<span style={{ color: C.text, fontWeight: 700 }}>氷ちゃん</span>
+          </div>
+          <div style={{ fontSize: 10.5, color: C.dim, marginTop: 10, letterSpacing: "0.08em" }}>Fighting Game Cognition Research</div>
+        </div>
       </div>
     </div>
   );
