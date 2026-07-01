@@ -1187,8 +1187,20 @@ function AdminStats({ onClose }) {
   // キャラ別タイプ傾向
   const charRecords = records.filter((r) => r.char === charFilter);
   const charTypeDist = MBTI_LIST.map((m) => ({ name: m, value: charRecords.filter((r) => r.mbti === m).length })).filter((d) => d.value > 0);
-  // 選択キャラのランク内訳
-  const charRankDist = RANK_LIST.map((rk) => ({ name: rankShort(rk), full: rk, value: charRecords.filter((r) => r.rank === rk).length })).filter((d) => d.value > 0);
+  // 選択キャラ: ランク帯 × MBTIグループ(積み上げ用) と ランク帯 × 16タイプ(クロス表用)
+  const GKEYS = ["NT", "NF", "SJ", "SP"];
+  const charRankGroup = RANK_LIST.map((rk) => {
+    const rs = charRecords.filter((r) => r.rank === rk);
+    const row = { rank: rankShort(rk), n: rs.length };
+    GKEYS.forEach((k) => { row[k] = rs.filter((r) => r.mbti && mbtiGroupOf(r.mbti).key === k).length; });
+    return row;
+  }).filter((d) => d.n > 0);
+  const charRankMbti = RANK_LIST.map((rk) => {
+    const rs = charRecords.filter((r) => r.rank === rk);
+    const row = { rank: rankShort(rk), n: rs.length };
+    MBTI_LIST.forEach((m) => { row[m] = rs.filter((r) => r.mbti === m).length; });
+    return row;
+  }).filter((d) => d.n > 0);
   const charsWithData = [...new Set(records.map((r) => r.char).filter(Boolean))];
 
   // ランク帯 × 認知タイプ(実測主タイプ measured.cog)
@@ -1305,15 +1317,52 @@ function AdminStats({ onClose }) {
                   </BarChart>
                 </ResponsiveContainer>
 
-                <div style={{ fontSize: 12, color: C.text, fontWeight: 700, margin: "18px 0 6px" }}>ランク帯内訳</div>
-                <ResponsiveContainer width="100%" height={Math.max(160, charRankDist.length * 34)}>
-                  <BarChart data={charRankDist} layout="vertical" margin={{ left: 10, right: 16 }}>
+                <div style={{ fontSize: 12, color: C.text, fontWeight: 700, margin: "18px 0 4px" }}>ランク帯 × MBTIグループ傾向</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px", marginBottom: 8 }}>
+                  {Object.values(MBTI_GROUPS).map((g) => (
+                    <div key={g.key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <span style={{ width: 11, height: 11, borderRadius: 3, background: g.color }} />
+                      <span style={{ fontSize: 10.5, color: C.sub }}>{g.key}</span>
+                    </div>
+                  ))}
+                </div>
+                <ResponsiveContainer width="100%" height={Math.max(180, charRankGroup.length * 40)}>
+                  <BarChart data={charRankGroup} layout="vertical" margin={{ left: 10, right: 16 }}>
                     <XAxis type="number" tick={{ fill: C.sub, fontSize: 11 }} allowDecimals={false} />
-                    <YAxis type="category" dataKey="name" tick={{ fill: C.sub, fontSize: 10.5 }} width={64} interval={0} />
+                    <YAxis type="category" dataKey="rank" tick={{ fill: C.sub, fontSize: 10.5 }} width={64} interval={0} />
                     <Tooltip contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text }} />
-                    <Bar dataKey="value" fill={C.amber} radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="NT" stackId="g" fill={MBTI_GROUPS.NT.color} />
+                    <Bar dataKey="NF" stackId="g" fill={MBTI_GROUPS.NF.color} />
+                    <Bar dataKey="SJ" stackId="g" fill={MBTI_GROUPS.SJ.color} />
+                    <Bar dataKey="SP" stackId="g" fill={MBTI_GROUPS.SP.color} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+
+                <div style={{ fontSize: 12, color: C.text, fontWeight: 700, margin: "18px 0 6px" }}>ランク帯 × 16タイプ クロス表</div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ borderCollapse: "collapse", fontSize: 10.5, minWidth: 700 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ position: "sticky", left: 0, background: C.panel, color: C.cyan, padding: "6px 8px", border: `1px solid ${C.border}`, textAlign: "left" }}>ランク \ 型</th>
+                        {MBTI_LIST.map((m) => <th key={m} style={{ padding: "6px 5px", border: `1px solid ${C.border}`, color: mbtiGroupOf(m).color, fontWeight: 700 }}>{m}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {charRankMbti.map((row) => (
+                        <tr key={row.rank}>
+                          <td style={{ position: "sticky", left: 0, background: C.panel2, color: C.text, padding: "6px 8px", border: `1px solid ${C.border}`, whiteSpace: "nowrap" }}>{row.rank}<span style={{ color: C.dim }}> ({row.n})</span></td>
+                          {MBTI_LIST.map((m) => {
+                            const v = row[m];
+                            const intensity = row.n ? v / row.n : 0;
+                            const gc = mbtiGroupOf(m);
+                            return <td key={m} style={{ padding: "6px 5px", border: `1px solid ${C.border}`, textAlign: "center", background: v ? `${gc.color}${Math.round((0.2 + intensity * 0.7) * 255).toString(16).padStart(2, "0")}` : "transparent", color: v ? "#fff" : C.dim }}>{v || ""}</td>;
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ fontSize: 11.5, color: C.dim, marginTop: 8 }}>セルは所属グループ色。濃いほどそのランク帯内での比率が高い。括弧内は回答数。</div>
               </>
             )}
           </Panel>
