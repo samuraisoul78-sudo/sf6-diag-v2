@@ -971,7 +971,7 @@ function Choice({ value, onChange, opts }) {
 }
 
 // ---------- 共有ボタン ----------
-const SITE_URL = "https://sf6-diag.vercel.app"; // ★本番URL確定後に新URLへ差し替え
+const SITE_URL = "https://sf6-diag-v2.vercel.app"; // ★本番URL確定後に新URLへ差し替え
 function ShareButtons({ r, T, mainChar }) {
   const [copied, setCopied] = useState(false);
 
