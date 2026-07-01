@@ -977,7 +977,7 @@ function ShareButtons({ r, T, mainChar }) {
 
   const buildText = () => {
     const lines = [];
-    lines.push(`【SF6格ゲープレイヤー診断】`);
+    lines.push(`【SF6格ゲー認知診断】`);
     lines.push(`私のタイプは ${r.mbti}／${T.name}${mainChar ? `（メイン：${mainChar}）` : ""}`);
     lines.push("");
     lines.push(`認知：${T.cog}型`);
@@ -993,12 +993,11 @@ function ShareButtons({ r, T, mainChar }) {
   };
 
   const shareText = buildText();
-  const tag = "#SF6格ゲー診断 #StreetFighter6";
+  const tag = "#格ゲー認知診断 #StreetFighter6";
 
   const onX = () => {
-    const text = encodeURIComponent(`${shareText}\n\n${tag}`);
-    const url = encodeURIComponent(SITE_URL);
-    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, "_blank", "noopener");
+    const text = encodeURIComponent(`${shareText}\n\n${tag}\n${SITE_URL}`);
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, "_blank", "noopener");
   };
 
   const onCopy = async () => {
@@ -1162,6 +1161,23 @@ function AdminStats({ onClose }) {
 
   const N = records.length;
 
+  // 回答数サマリー(期間別)
+  const nowTs = Date.now();
+  const startOfToday = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+  const DAY = 24 * 60 * 60 * 1000;
+  const countSince = (fromTs) => records.filter((r) => r.ts && r.ts >= fromTs).length;
+  const nToday = countSince(startOfToday);
+  const n7 = countSince(nowTs - 7 * DAY);
+  const n30 = countSince(nowTs - 30 * DAY);
+
+  // 使用キャラランキング(全30キャラ・0件含む・件数降順)
+  const charRank = (() => {
+    const t = {};
+    ALL_CHARS.forEach((c) => { t[c] = 0; });
+    records.forEach((r) => { if (r.char && t[r.char] != null) t[r.char] += 1; });
+    return Object.entries(t).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  })();
+
   // MBTI分布
   const mbtiDist = MBTI_LIST.map((m) => ({ name: m, value: records.filter((r) => r.mbti === m).length }));
 
@@ -1169,6 +1185,15 @@ function AdminStats({ onClose }) {
   const charRecords = records.filter((r) => r.char === charFilter);
   const charTypeDist = MBTI_LIST.map((m) => ({ name: m, value: charRecords.filter((r) => r.mbti === m).length })).filter((d) => d.value > 0);
   const charsWithData = [...new Set(records.map((r) => r.char).filter(Boolean))];
+
+  // ランク帯 × 認知タイプ(実測主タイプ measured.cog)
+  const rankShort = (rk) => rk.replace("マスター(MR1300未満)", "Master").replace("プラチナ以下", "〜Plat").replace("ダイヤモンド", "Dia");
+  const rankCog = RANK_LIST.map((rk) => {
+    const rs = records.filter((r) => r.rank === rk);
+    const row = { rank: rankShort(rk), n: rs.length };
+    COG_ORDER.forEach((c) => { row[c] = rs.filter((r) => r.measured && r.measured.cog === c).length; });
+    return row;
+  }).filter((d) => d.n > 0);
 
   // 各層のズレ段階割合
   const layers = [["cog", "認知"], ["aes", "美学"], ["men", "メンタル"], ["grw", "成長"]];
@@ -1209,26 +1234,47 @@ function AdminStats({ onClose }) {
           <h1 style={{ fontSize: 20, margin: 0 }}>管理者：集計ダッシュボード</h1>
           <button onClick={onClose} style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.sub, cursor: "pointer", fontSize: 13 }}>閉じる</button>
         </div>
-        <div style={{ fontSize: 12.5, color: C.dim, marginBottom: 16 }}>累計回答数：<b style={{ color: C.cyan }}>{N}</b> 件</div>
+        {/* 回答数サマリー */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 18 }}>
+          {[["総回答数", N, C.cyan], ["今日", nToday, MBTI_GROUPS.NF.color], ["直近7日", n7, MBTI_GROUPS.NT.color], ["直近30日", n30, MBTI_GROUPS.SP.color]].map(([label, val, col]) => (
+            <div key={label} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 10px", textAlign: "center" }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: col, lineHeight: 1.1 }}>{val}</div>
+              <div style={{ fontSize: 10.5, color: C.sub, marginTop: 4 }}>{label}</div>
+            </div>
+          ))}
+        </div>
 
         <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, marginBottom: 18 }}>
           {tabBtn("mbti", "MBTI分布")}
+          {tabBtn("charrank", "キャラ順位")}
           {tabBtn("char", "キャラ別傾向")}
           {tabBtn("dev", "層別ズレ割合")}
           {tabBtn("devrank", "ズレ×ランク")}
-          {tabBtn("ranktype", "ランク×タイプ")}
+          {tabBtn("ranktype", "ランク×MBTI")}
+          {tabBtn("rankcog", "ランク×認知")}
         </div>
 
         {N === 0 && <div style={{ color: C.dim, fontSize: 13, padding: 20, textAlign: "center", border: `1px dashed ${C.border}`, borderRadius: 10 }}>まだデータがありません。診断を完了するとここに集計されます。</div>}
 
         {N > 0 && view === "mbti" && (
           <Panel title="MBTIタイプ分布">
+            {/* グループ凡例 */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 14px", marginBottom: 12 }}>
+              {Object.values(MBTI_GROUPS).map((g) => (
+                <div key={g.key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: g.color, flex: "0 0 auto" }} />
+                  <span style={{ fontSize: 11, color: C.sub }}><b style={{ color: C.text }}>{g.key}</b> {g.label}</span>
+                </div>
+              ))}
+            </div>
             <ResponsiveContainer width="100%" height={360}>
               <BarChart data={mbtiDist} margin={{ left: -20 }}>
                 <XAxis dataKey="name" tick={{ fill: C.sub, fontSize: 10 }} interval={0} angle={-45} textAnchor="end" height={50} />
                 <YAxis tick={{ fill: C.sub, fontSize: 11 }} allowDecimals={false} />
                 <Tooltip contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text }} />
-                <Bar dataKey="value" fill={C.purple} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {mbtiDist.map((d) => <Cell key={d.name} fill={mbtiGroupOf(d.name).color} />)}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </Panel>
@@ -1245,7 +1291,9 @@ function AdminStats({ onClose }) {
                   <XAxis type="number" tick={{ fill: C.sub, fontSize: 11 }} allowDecimals={false} />
                   <YAxis type="category" dataKey="name" tick={{ fill: C.sub, fontSize: 11 }} width={50} />
                   <Tooltip contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text }} />
-                  <Bar dataKey="value" fill={C.cyan} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                    {charTypeDist.map((d) => <Cell key={d.name} fill={mbtiGroupOf(d.name).color} />)}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -1310,6 +1358,64 @@ function AdminStats({ onClose }) {
               </table>
             </div>
             <div style={{ fontSize: 11.5, color: C.dim, marginTop: 8 }}>セルの色が濃いほど、そのランク帯内での比率が高い。括弧内は回答数。</div>
+          </Panel>
+        )}
+
+        {N > 0 && view === "charrank" && (
+          <Panel title="使用キャラランキング（全30キャラ）">
+            {records.length === 0 ? <div style={{ color: C.dim, fontSize: 13, padding: 16 }}>回答がまだありません。</div> : (
+              <>
+                <ResponsiveContainer width="100%" height={Math.max(220, charRank.length * 22)}>
+                  <BarChart data={charRank} layout="vertical" margin={{ left: 20, right: 16 }}>
+                    <XAxis type="number" tick={{ fill: C.sub, fontSize: 11 }} allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fill: C.sub, fontSize: 10 }} width={72} interval={0} />
+                    <Tooltip contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text }} />
+                    <Bar dataKey="value" fill={C.cyan} radius={[0, 4, 4, 0]}>
+                      {charRank.map((d, i) => <Cell key={d.name} fill={d.value === 0 ? C.border : i === 0 ? MBTI_GROUPS.SP.color : i === 1 ? MBTI_GROUPS.NT.color : i === 2 ? MBTI_GROUPS.NF.color : C.cyan} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 3 }}>
+                  {(() => {
+                    // 同数は同順位
+                    let lastVal = null, lastRank = 0;
+                    return charRank.map((d, i) => {
+                      const rank = d.value === lastVal ? lastRank : (lastRank = i + 1, lastVal = d.value, lastRank);
+                      const top3 = rank <= 3 && d.value > 0;
+                      return (
+                        <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5, padding: "4px 0", borderBottom: i < charRank.length - 1 ? `1px solid ${C.border}` : "none", opacity: d.value === 0 ? 0.5 : 1 }}>
+                          <span style={{ flex: "0 0 auto", width: 24, textAlign: "center", fontWeight: 800, color: top3 ? C.cyan : C.dim }}>{rank}</span>
+                          <span style={{ flex: 1, color: C.text }}>{d.name}</span>
+                          <span style={{ flex: "0 0 auto", color: C.sub }}>{d.value} 件</span>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </>
+            )}
+          </Panel>
+        )}
+
+        {N > 0 && view === "rankcog" && (
+          <Panel title="ランク帯 × 認知タイプ傾向">
+            {rankCog.length === 0 ? <div style={{ color: C.dim, fontSize: 13, padding: 16 }}>データがまだありません。</div> : (
+              <>
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={rankCog} margin={{ left: -15 }}>
+                    <XAxis dataKey="rank" tick={{ fill: C.sub, fontSize: 9.5 }} interval={0} angle={-35} textAnchor="end" height={60} />
+                    <YAxis tick={{ fill: C.sub, fontSize: 11 }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text }} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="観察" stackId="a" fill={MBTI_GROUPS.NT.color} />
+                    <Bar dataKey="圧力" stackId="a" fill={MBTI_GROUPS.SP.color} />
+                    <Bar dataKey="直感" stackId="a" fill={MBTI_GROUPS.NF.color} />
+                    <Bar dataKey="反応" stackId="a" fill={MBTI_GROUPS.SJ.color} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <div style={{ fontSize: 11.5, color: C.dim, marginTop: 8 }}>各ランク帯の実測「認知タイプ（今の傾向）」の内訳。各ランクの回答数：{rankCog.map((d) => `${d.rank}(${d.n})`).join(" / ")}</div>
+              </>
+            )}
           </Panel>
         )}
       </div>
@@ -1538,7 +1644,7 @@ export default function App() {
             </div>
           )}
           <h1 onClick={() => { const n = tapCount + 1; setTapCount(n); if (n >= 5) { setPhase("admin"); setTapCount(0); } }}
-            style={{ fontSize: 28, margin: "0 0 6px", fontWeight: 800, cursor: "default", userSelect: "none" }}>SF6 格ゲープレイヤー診断</h1>
+            style={{ fontSize: 28, margin: "0 0 6px", fontWeight: 800, cursor: "default", userSelect: "none" }}>SF6 格ゲー認知診断</h1>
           <div style={{ color: C.cyan, fontSize: 14, marginBottom: 2 }}>MBTI × 格ゲー認知スタイル</div>
           <div style={{ color: C.dim, fontSize: 12.5, marginBottom: 16 }}>制作：安樂浄土</div>
           <p style={{ color: C.sub, fontSize: 13, lineHeight: 1.7, marginBottom: 28 }}>
@@ -1588,7 +1694,7 @@ export default function App() {
         <div style={{ position: "sticky", top: 0, background: C.bg, padding: "16px 0 12px", borderBottom: `1px solid ${C.border}`, zIndex: 10 }}>
           <div style={container}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.sub, marginBottom: 8 }}>
-              <span><Pill color={isMbti ? C.purple : C.cyan}>{sectionLabel}</Pill></span>
+              <span><Pill color={C.cyan}>{sectionLabel}</Pill></span>
               <span>{step + 1} / {total}</span>
             </div>
             <div style={{ height: 4, background: C.panel2, borderRadius: 2 }}>
