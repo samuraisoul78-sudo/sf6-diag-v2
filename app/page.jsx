@@ -1632,12 +1632,18 @@ export default function App() {
     const grwMain = pickMain(grwTally, T.grwCat, GRW_ORDER);
     const grwDev = deviationStage(T.grwCat, grwTally, GRW_ORDER);
 
-    // weak(実測が弱い/割れた)時は素質を軸にするため、ズレ段階を0に揃える
-    const norm = (mainObj, dev) => mainObj.weak ? { stage: 0, measuredMain: mainObj.main } : dev;
-    const cogDevN = norm(cogMain, cogDev);
-    const aesDevN = norm(aesMain, aesDev);
-    const menDevN = norm(menMain, menDev);
-    const grwDevN = norm(grwMain, grwDev);
+    // weak(実測が弱い/割れた)時、または採用mainが素質と一致する時は「素質どおり」に揃える
+    const norm = (mainObj, dev, theory) => {
+      if (mainObj.weak) return { stage: 0, measuredMain: mainObj.main };
+      // 表示上の「今の傾向(main)」が素質(theory)と同じなら、ズレなし(stage 0)に統一
+      if (mainObj.main === theory) return { stage: 0, measuredMain: theory };
+      // ズレあり: 解釈文とバッジ表示がずれないよう measuredMain を採用main に揃える
+      return { stage: dev.stage === 0 ? 1 : dev.stage, measuredMain: mainObj.main };
+    };
+    const cogDevN = norm(cogMain, cogDev, T.cog);
+    const aesDevN = norm(aesMain, aesDev, T.aes);
+    const menDevN = norm(menMain, menDev, T.men);
+    const grwDevN = norm(grwMain, grwDev, T.grwCat);
 
     return {
       mbti, detail, T, tiedAxes,
@@ -2078,10 +2084,10 @@ export default function App() {
 
               {/* 認知レーダー */}
               <div style={{ fontSize: 12, color: g.color, marginBottom: 4, fontWeight: 700 }}>認知タイプの分布（実測）</div>
-              <ResponsiveContainer width="100%" height={220}>
-                <RadarChart data={cogData} outerRadius="72%">
+              <ResponsiveContainer width="100%" height={240}>
+                <RadarChart data={cogData} outerRadius="65%" margin={{ top: 18, right: 30, bottom: 18, left: 30 }}>
                   <PolarGrid stroke={C.border} />
-                  <PolarAngleAxis dataKey="type" tick={{ fill: C.sub, fontSize: 12 }} />
+                  <PolarAngleAxis dataKey="type" tick={{ fill: C.text, fontSize: 13 }} tickLine={false} />
                   <PolarRadiusAxis domain={[0, cogMax]} tick={false} axisLine={false} />
                   <Radar dataKey="value" stroke={g.color} fill={g.color} fillOpacity={0.45} />
                 </RadarChart>
